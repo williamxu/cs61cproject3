@@ -28,9 +28,13 @@ int conv2D(float* in, float* out, int data_size_X, int data_size_Y,
 
     */		
     //TODO loop is inefficient, use SIMD
+    __m128 zeros = _mm_setzero_ps();
     int counter = 0;
 	int index;
-    for (index = 0; index < pad_x*pad; index++) {
+    for (index = 0; index < (pad_x*pad)/4*4; index += 4) {
+        _mm_storeu_ps(in_modified+index, zeros);
+    }
+    for (; index < (pad_x*pad); index++){
     	in_modified[index] = 0; //first #pad rows are all 0s
     }
     for (; index < pad_x * (pad + data_size_Y); index++) {
@@ -39,13 +43,25 @@ int conv2D(float* in, float* out, int data_size_X, int data_size_Y,
     		in_modified[index] = 0; //first #pad and last #pad column are 0s
     	}
     	else {
-    		in_modified[index] = in[counter]; //rest of the values are from original input
-    		counter++;
+            if (counter % data_size_X < data_size_X/4*4) {
+                __m128 vals = _mm_loadu_ps(in+counter);
+                _mm_storeu_ps(in_modified+index, vals);
+                counter += 4;
+                index += 3;
+            }
+            else {
+                in_modified[index] = in[counter]; //rest of the values are from original input
+                counter++;
+            }
     	}
     }
-    for (; index < size; index++) {
+    for (; index < size/4*4; index += 4) {
+        _mm_storeu_ps(in_modified+index, zeros);
+    }
+    for (; index < size; index++){
     	in_modified[index] = 0; //fill last #pad rows with 0s
     }
+
     // main convolution loop
     for(int y = 0; y < data_size_Y; y++){ // the y coordinate of theoutput location we're focusing on
         for(int x = 0; x < data_size_X; x++){ // the x coordinate of the output location we're focusing on
