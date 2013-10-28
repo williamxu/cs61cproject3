@@ -73,14 +73,20 @@ int conv2D(float* in, float* out, int data_size_X, int data_size_Y,
     // main convolution loop
     for(int y = 0; y < data_size_Y; y++){ // the y coordinate of the output location we're focusing on
         for(int x = 0; x < data_size_X; x++){ // the x coordinate of the output location we're focusing on
-            float temp = 0; //by adding the values up first, we utilize register blocking.
-            for(int j = 0; j < KERNX; j++){ // kernel unflipped y coordinate
-                for(int i = 0; i < KERNY; i++){ // kernel unflipped x coordinate
+            // for(int j = 0; j < KERNX; j++){ // kernel unflipped y coordinate
+                // for(int i = 0; i < KERNY; i++){ // kernel unflipped x coordinate
                     // only do the operation if not out of bounds
-                    temp += flipped_kernel[i+j*KERNX] * in_modified[(x+i) + (y+j)*pad_x];
-                }
-            }
-            out[x+y*data_size_X] += temp;
+                    out[x+y*data_size_X] = flipped_kernel[0] * in_modified[x + y*pad_x] + 
+                                            flipped_kernel[1] * in_modified[(x+1) + y*pad_x] +
+                                            flipped_kernel[2] * in_modified[(x+2) + y*pad_x] +
+                                            flipped_kernel[3] * in_modified[x + (y+1)*pad_x] +
+                                            flipped_kernel[4] * in_modified[(x+1) + (y+1)*pad_x] +
+                                            flipped_kernel[5] * in_modified[(x+2)+ (y+1)*pad_x] +
+                                            flipped_kernel[6] * in_modified[x + (y+2)*pad_x] +
+                                            flipped_kernel[7] * in_modified[(x+1) + (y+2)*pad_x] +
+                                            flipped_kernel[8] * in_modified[(x+2) + (y+2)*pad_x];
+                // }
+            // }
         }
     }
     return 1;
