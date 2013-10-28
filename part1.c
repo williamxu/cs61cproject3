@@ -30,18 +30,21 @@ int conv2D(float* in, float* out, int data_size_X, int data_size_Y,
     __m128 zeros = _mm_setzero_ps();
     int counter = 0;
     int index;
-    for (index = 0; 4 < pad_x*pad - index; index += 4) {
+    int check = pad_x*pad - 4;
+    for (index = 0; index < check; index += 4) {
         _mm_storeu_ps(in_modified+index, zeros);
     }
     for (; index < pad_x*pad; index++){
         in_modified[index] = 0; //first #pad rows are all 0s
     }
     int row = pad;
-    for (; 4 < pad_x * (pad + data_size_Y) - index; index += pad_x) {
+    check = pad_x * (pad + data_size_Y) - 4;
+    for (; index < check; index += pad_x) {
         int t = index;
         in_modified[t] = 0;
         t++;
-        for (; 4 < row*data_size_X - counter; counter += 4) {
+        int check1 = row*data_size_X - 4;
+        for (; counter < check1; counter += 4) {
             __m128 vals = _mm_loadu_ps(in+counter);
             _mm_storeu_ps(in_modified+t, vals);
             t += 4;
@@ -53,7 +56,8 @@ int conv2D(float* in, float* out, int data_size_X, int data_size_Y,
         in_modified[t] = 0;
         row++;
     }
-    for (; 4 < size - index; index += 4) {
+    check = size - 4;
+    for (; index < check; index += 4) {
         _mm_storeu_ps(in_modified+index, zeros);
     }
     for (; index < size; index++){
