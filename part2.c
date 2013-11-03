@@ -11,7 +11,6 @@ int conv2D(float* in, float* out, int data_size_X, int data_size_Y,
     int pad_y = data_size_Y+pad*2;
     int size = pad_x*pad_y;
     float in_modified[size];
-
     __m128 zeros = _mm_setzero_ps();
     #pragma omp parallel for
     for (int x = 0; x < pad_x/4*4; x+=4){
