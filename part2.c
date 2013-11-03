@@ -6,8 +6,6 @@
 int conv2D(float* in, float* out, int data_size_X, int data_size_Y,
                     float* kernel)
 {
-    int kern_cent_X = (KERNX - 1)/2;
-    int kern_cent_Y = (KERNY - 1)/2;
     int pad = (KERNX-1)/2;
     int pad_x = data_size_X+pad*2;
     int pad_y = data_size_Y+pad*2;
@@ -15,16 +13,26 @@ int conv2D(float* in, float* out, int data_size_X, int data_size_Y,
     float in_modified[size];
 
     __m128 zeros = _mm_setzero_ps();
-    #pragma parallel omp for
-    for (int x = 0; x < pad_x; x++){
+    #pragma omp parallel for
+    for (int x = 0; x < pad_x/4*4; x+=4){
+        _mm_storeu_ps(in_modified+x, zeros);
+        _mm_storeu_ps(in_modified+x+(data_size_Y+1)*pad_x,zeros);
+    }
+    for (int x = pad_x/4*4; x < pad_x; x++){
         in_modified[x] = 0;
         in_modified[x+(data_size_Y+1)*pad_x] = 0;
     }
-    #pragma parallel omp for
+    #pragma omp parallel for
     for (int y = 0; y < data_size_Y; y++){
         in_modified[(y+1) * pad_x] = 0;
-        for (int x = 0; x < data_size_X; x++){
+        // #pragma omp parallel for
+        for (int x = 0; x < data_size_X/4*4; x+=4){
+            __m128 data = _mm_loadu_ps(in + x + y*data_size_X);
+            _mm_storeu_ps(in_modified + x+1+(y+1)*pad_x, data);
+        }
+        for(int x = data_size_X/4*4; x < data_size_X; x++){
             in_modified[x+1+(y+1)*pad_x] = in[x + y*data_size_X];
+
         }
         in_modified[(y+2)*pad_x - 1] = 0;
     }
@@ -42,21 +50,22 @@ int conv2D(float* in, float* out, int data_size_X, int data_size_Y,
     // main convolution loop
     #pragma omp parallel for
     for(int y = 0; y < data_size_Y; y++){ 
-        int x;
-        for(x = 0; x < data_size_X/4*4; x+=4){
+        // #pragma omp parallel for
+        for(int x = 0; x < data_size_X/4*4; x+=4){
             __m128 sum = _mm_setzero_ps();
             sum = _mm_add_ps(sum, _mm_mul_ps(kern0, _mm_loadu_ps(in_modified + x + y * pad_x)));           
-            sum = _mm_add_ps(sum, _mm_mul_ps(kern1, _mm_loadu_ps(in_modified + x + 1 + y * pad_x)));        
-            sum = _mm_add_ps(sum, _mm_mul_ps(kern2, _mm_loadu_ps(in_modified + x + 2 + y * pad_x)));         
             sum = _mm_add_ps(sum, _mm_mul_ps(kern3, _mm_loadu_ps(in_modified + x + (y + 1) * pad_x)));       
-            sum = _mm_add_ps(sum, _mm_mul_ps(kern4, _mm_loadu_ps(in_modified + x + 1 + (y + 1) * pad_x)));  
-            sum = _mm_add_ps(sum, _mm_mul_ps(kern5, _mm_loadu_ps(in_modified + x + 2 + (y + 1) * pad_x)));  
             sum = _mm_add_ps(sum, _mm_mul_ps(kern6, _mm_loadu_ps(in_modified + x + (y + 2) * pad_x)));     
+            sum = _mm_add_ps(sum, _mm_mul_ps(kern1, _mm_loadu_ps(in_modified + x + 1 + y * pad_x)));        
+            sum = _mm_add_ps(sum, _mm_mul_ps(kern4, _mm_loadu_ps(in_modified + x + 1 + (y + 1) * pad_x)));  
             sum = _mm_add_ps(sum, _mm_mul_ps(kern7, _mm_loadu_ps(in_modified + x + 1 + (y + 2) * pad_x)));  
+            sum = _mm_add_ps(sum, _mm_mul_ps(kern2, _mm_loadu_ps(in_modified + x + 2 + y * pad_x)));         
+            sum = _mm_add_ps(sum, _mm_mul_ps(kern5, _mm_loadu_ps(in_modified + x + 2 + (y + 1) * pad_x)));  
             sum = _mm_add_ps(sum, _mm_mul_ps(kern8, _mm_loadu_ps(in_modified + x + 2 + (y + 2) * pad_x)));  
             _mm_storeu_ps(out+x+y*data_size_X, sum);
         }
-        for(; x < data_size_X; x++){
+        // #pragma omp parallel for
+        for(int x = data_size_X/4*4; x < data_size_X; x++){
             out[x+y*data_size_X] = kernel[8] * in_modified[x + y*pad_x] + 
                                 kernel[7] * in_modified[(x+1) + y*pad_x] +
                                 kernel[6] * in_modified[(x+2) + y*pad_x] +
